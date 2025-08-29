@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from dotenv import load_dotenv
 
 from mapping import PROMO_PAGES, SELECTORS, CATEGORY_MAP, CITY_NORMALIZATION
-from notion_client import upsert_offer
+from notion_api import upsert_offer
 
 load_dotenv()
 
