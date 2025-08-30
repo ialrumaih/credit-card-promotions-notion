@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from dotenv import load_dotenv
 
 from mapping import PROMO_PAGES, SELECTORS, CATEGORY_MAP, CITY_NORMALIZATION
-from notion_api import upsert_offer
+from notion_api import upsert_offer, clear_database
 
 load_dotenv()
 
@@ -56,12 +56,21 @@ def clean_whitespace(s: str) -> str:
 
 def normalize_category(s: str, default: str | None = None) -> str | None:
     s_norm = clean_whitespace(s).lower()
+    # Heuristic mapping from Arabic keywords
     for k, v in CATEGORY_MAP.items():
         if k in s_norm:
             return v
+    # If nothing detected, prefer provided default
     if default:
         return default
-    return s_norm.title() if s_norm else None
+    # As a last resort, build a safe label from raw text
+    if not s_norm:
+        return None
+    # Remove commas (Notion select options cannot contain commas)
+    safe = s_norm.replace(",", " ").strip().title()
+    if len(safe) > 80:
+        safe = safe[:80]
+    return safe
 
 
 def normalize_city(s: str) -> str:
@@ -103,6 +112,9 @@ def extract_cards(html: str, base_url: str, default_category: str | None = None)
 
 
 def run():
+    # ---------- Clear DB first (fresh ingest each run) ----------
+    clear_database()
+
     all_items: list[dict] = []
 
     for cfg in PROMO_PAGES:
@@ -121,7 +133,7 @@ def run():
         except Exception as e:
             print(f"[WARN] Failed {url}: {e}")
 
-    # Deduplicate by (name, city, issuer)
+    # Deduplicate by (name, city, issuer) just in case pages overlap
     dedup: dict[tuple[str, str, str], dict] = {}
     for it in all_items:
         key = (it.get("name") or "", it.get("city") or "", it.get("issuer") or "")
